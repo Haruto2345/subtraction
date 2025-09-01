@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>เกมลากเหรียญ: บวก - ลบ จำนวนเต็ม</title>
+<style>
+  :root{
+    --bg:#f7fbff; --card:#ffffff; --accent:#2563eb; --good:#16a34a; --bad:#ef4444;
+    --coin-size:64px;
+  }
+  *{box-sizing:border-box; font-family: Inter, system-ui, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial;}
+  body{margin:0; padding:20px; background:linear-gradient(180deg,var(--bg),#eef6ff); color:#0f172a;}
+  .app{max-width:1100px; margin:0 auto;}
+  header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;}
+  h1{font-size:20px; margin:0;}
+  .controls{display:flex; gap:8px; align-items:center;}
+  button{background:var(--card); border:1px solid #e6eefc; padding:8px 12px; border-radius:8px; cursor:pointer; box-shadow:0 1px 0 rgba(2,6,23,0.04);}
+  .btn-primary{background:linear-gradient(180deg,var(--accent),#1d4ed8); color:white; border:none;}
+  .btn-danger{background:linear-gradient(180deg,var(--bad),#dc2626); color:white; border:none;}
+  .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .panel{background:var(--card); border-radius:12px; padding:12px; border:1px solid #e9f2ff;}
+  .layout{display:grid; grid-template-columns: 360px 1fr; gap:16px;}
+  .bank{min-height:160px; padding:10px; position:relative;}
+  .bank-title{font-weight:600; margin-bottom:8px;}
+  .board{background:linear-gradient(180deg,#ffffff,#f1f8ff); border:2px dashed #cfe6ff; height:520px; border-radius:12px; position:relative; overflow:hidden;}
+  .info-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .stat{font-weight:700; font-size:18px;}
+  .sub{font-size:13px; color:#334155;}
+  .controls small{display:block; color:#475569; font-size:12px;}
+  .coin{
+    width:var(--coin-size); height:var(--coin-size); border-radius:50%; position:absolute;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px;
+    user-select:none; touch-action:none; cursor:grab; transform-style:preserve-3d;
+    transition:transform .45s cubic-bezier(.2,.9,.2,1), box-shadow .12s;
+    box-shadow:0 6px 14px rgba(2,6,23,0.08);
+  }
+  .coin:active{cursor:grabbing;}
+  .coin.front{ background:linear-gradient(180deg,#fffacd,#ffd66b); color:#333; border:3px solid #f7d86b;}
+  .coin.back{ background:linear-gradient(180deg,#fde8ea,#ff9aa2); color:#46111a; border:3px solid #ffb1b9;}
+  .coin.flipped{ transform: rotateY(180deg); }
+  .coin .face{ position:absolute; width:100%; height:100%; display:flex; align-items:center; justify-content:center; backface-visibility:hidden; border-radius:50%;}
+  .coin .face.back{ transform:rotateY(180deg); }
+  .controls .small-muted{font-size:12px; color:#475569;}
+  .row{display:flex; gap:8px; align-items:center;}
+  .trash{width:48px; height:48px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid #ffdede;}
+  .bottom-actions{display:flex; gap:8px; margin-top:10px; align-items:center;}
+  .help{font-size:13px; color:#475569;}
+  .hint{font-size:13px; color:#0f172a; margin-top:8px;}
+  .floating-hint{position:absolute; right:12px; top:12px; background:rgba(255,255,255,0.9); padding:6px 10px; border-radius:10px; border:1px solid #eef7ff;}
+  .mini{font-size:12px; padding:6px 8px;}
+  .badge{padding:6px 8px; border-radius:8px; background:#eef8ff; color:#0b72d6; font-weight:700;}
+  .legend{display:flex; gap:8px; align-items:center; margin-top:8px;}
+  .legend .item{display:flex; gap:6px; align-items:center; font-size:13px;}
+  .demo-row{display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;}
+  footer{margin-top:12px; font-size:13px; color:#475569;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>เกมลากเหรียญ — บวก / ลบ จำนวนเต็ม (ทดลอง)</h1>
+      <div class="sub">ลากเหรียญลงบนกระดาน คลิก/ดับเบิลคลิกเพื่อพลิกค่า +1 ↔ −1 ระบบจะคำนวณรวมให้อัตโนมัติ</div>
+    </div>
+    <div class="controls">
+      <div class="badge" id="totalDisplay">ผลรวม: 0</div>
+      <div style="width:8px"></div>
+      <button class="btn-primary" id="resetBtn">รีเซ็ต</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Left: Bank / Controls -->
+    <div class="panel">
+      <div class="bank">
+        <div class="bank-title">คลังเหรียญ</div>
+        <div class="demo-row">
+          <button id="addPlus" class="mini">เพิ่มเหรียญ +1</button>
+          <button id="addMinus" class="mini">เพิ่มเหรียญ −1</button>
+          <button id="addRandom" class="mini">เพิ่มชุดสุ่ม (5)</button>
+        </div>
+        <div class="hint">เคล็ดลับ: ลากเหรียญจากคลังลงบนกระดาน ทางขวา — หรือทำซ้ำ แล้วลากไปวาง</div>
+
+        <div style="margin-top:10px;">
+          <div class="legend">
+            <div class="item"><div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(180deg,#fffacd,#ffd66b);border:2px solid #f7d86b"></div> <span>ค่า +1 (คลิกพลิกเป็น −1)</span></div>
+            <div class="item"><div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(180deg,#fde8ea,#ff9aa2);border:2px solid #ffb1b9"></div> <span>ค่า −1 (คลิกพลิกเป็น +1)</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;" class="sub">คำสั่งเพิ่มเติม</div>
+        <div class="demo-row">
+          <button id="flipAll" class="mini">พลิกทั้งหมด</button>
+          <button id="countOnBoard" class="mini">คำนวณตอนนี้</button>
+          <button id="removeAll" class="mini">ลบเหรียญทั้งหมด</button>
+        </div>
+
+        <div class="hint" style="margin-top:10px">เคล็ดลับครู: กด <strong>Share → Make a copy for each student</strong> ให้เด็กทำไฟล์ตัวเองหรือให้เปิดในโหมดแก้ไข</div>
+      </div>
+    </div>
+
+    <!-- Right: Board -->
+    <div>
+      <div class="panel" style="padding:12px 12px 8px 12px;">
+        <div class="info-row">
+          <div>
+            <div class="sub">โจทย์ (ตัวอย่าง)</div>
+            <div style="margin-top:6px; font-weight:700; font-size:18px;">โจทย์: <span id="problemText">−2 + 5 = ?</span></div>
+          </div>
+          <div style="text-align:right">
+            <div class="sub">คำสั่ง</div>
+            <div style="margin-top:6px;">ลากเหรียญมาวางในกรอบเพื่อหาผลรวม</div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:12px; align-items:center;">
+          <div style="flex:1;">
+            <div class="board" id="board">
+              <div class="floating-hint" id="boardCount">เหรียญบนกระดาน: 0</div>
+              <!-- coins will be appended here -->
+            </div>
+          </div>
+          <div style="width:240px;">
+            <div class="panel" style="padding:10px;">
+              <div style="font-weight:700">ผลลัพธ์</div>
+              <div style="margin-top:8px;">
+                <div class="stat" id="sumValue">0</div>
+                <div class="sub">ระบบรวมค่าเหรียญบนกระดานแบบเรียลไทม์</div>
+              </div>
+
+              <div style="margin-top:12px;">
+                <div class="row">
+                  <label>เปลี่ยนโจทย์เป็น: </label>
+                  <input type="text" id="problemInput" placeholder="เช่น -2 + 5" style="flex:1; padding:6px; border-radius:6px; border:1px solid #e6eefc;">
+                </div>
+                <div style="margin-top:8px;" class="row">
+                  <button id="applyProblem" class="mini">ตั้งโจทย์</button>
+                  <button id="autoSolve" class="mini">เฉลยอัตโนมัติ</button>
+                </div>
+                <div class="help" style="margin-top:8px">หมายเหตุ: เฉลยอัตโนมัติจะไม่ย้ายเหรียญ แต่จะแสดงคำตอบจากนิพจน์</div>
+              </div>
+
+              <div style="margin-top:12px;">
+                <div style="font-weight:700">พื้นที่ทิ้ง</div>
+                <div style="margin-top:8px; display:flex; gap:8px;">
+                  <div id="trash" class="trash">🗑️</div>
+                  <div class="sub">ลากเหรียญมาทิ้งเพื่อเอาออก</div>
+                </div>
+              </div>
+
+              <div class="bottom-actions">
+                <button id="explain" class="mini">คำแนะนำการสอน</button>
+                <button id="downloadBtn" class="mini">ดาวน์โหลดเป็น PNG</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <footer>วิธีเล่น: เพิ่มเหรียญ → ลากลงบนกระดาน → คลิกเพื่อพลิกค่า (+ ↔ −) → ระบบจะคำนวณรวมให้โดยอัตโนมัติ</footer>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Simple interactive drag + flip coin playground
+   - coins are absolute elements inside document.body
+   - on pointerdown we track pointer movements to "drag" the coin element
+   - coin has data-value: "1" or "-1"; class 'flipped' indicates rotated state (flip animation)
+   - sum computed by checking coins inside board bounds
+*/
+
+// helpers
+const q = s => document.querySelector(s);
+const qa = s => Array.from(document.querySelectorAll(s));
+
+const board = q('#board');
+const totalDisplay = q('#totalDisplay');
+const sumValue = q('#sumValue');
+const boardCount = q('#boardCount');
+const problemText = q('#problemText');
+const problemInput = q('#problemInput');
+
+let coinIdCounter = 0;
+
+// create a coin DOM
+function makeCoin(value=1, x=20, y=20){
+  const coin = document.createElement('div');
+  coin.className = 'coin';
+  coin.style.left = x + 'px';
+  coin.style.top = y + 'px';
+  coin.dataset.value = value; // numeric 1 or -1
+  coin.dataset.id = 'c' + (++coinIdCounter);
+  coin.innerHTML = `
+    <div class="face front">${value>0?'':''}</div>
+    <div class="face back">${value>0?'':''}</div>
+  `;
+  // assign style based on sign (front/back color)
+  if(value>0){
+    coin.classList.add('front');
+  } else {
+    coin.classList.add('back', 'flipped'); // show back when negative to make visual sense
+  }
+
+  // show on board by default (position relative to board)
+  // place at top-left of board area if inside board
+  const br = board.getBoundingClientRect();
+  // place relative to board coordinates
+  coin.style.left = (br.left + 20 + ((coinIdCounter*10) % (br.width-100))) + 'px';
+  coin.style.top = (br.top + 20 + ((coinIdCounter*6) % (br.height-120))) + 'px';
+  // append to body so we can absolutely position it over board
+  document.body.appendChild(coin);
+
+  // pointer-based drag
+  coin.addEventListener('pointerdown', startDrag);
+  // click to flip (single click) and double click also flip
+  coin.addEventListener('click', (e) => {
+    // prevent click after dragging
+    if(coin.dataset.dragging === '1') { coin.dataset.dragging = '0'; return; }
+    toggleFlip(coin);
+  });
+  coin.addEventListener('dblclick', (e) => {
+    toggleFlip(coin);
+  });
+
+  // right-click to remove quickly
+  coin.addEventListener('contextmenu', (e)=>{
+    e.preventDefault();
+    coin.remove();
+    computeSum();
+  });
+
+  return coin;
+}
+
+function toggleFlip(coin){
+  // flip visual
+  coin.classList.toggle('flipped');
+  // toggle numeric value shown in dataset
+  const current = Number(coin.dataset.value);
+  coin.dataset.value = String(-current);
+  // update face text (front/back)
+  const faces = coin.querySelectorAll('.face');
+  faces[0].textContent = coin.dataset.value === '1' ? '' : '';
+  faces[1].textContent = coin.dataset.value === '1' ? '' : '';
+  // color swap
+  if(Number(coin.dataset.value) > 0){
+    coin.classList.add('front');
+    coin.classList.remove('back');
+  } else {
+    coin.classList.remove('front');
+    coin.classList.add('back');
+  }
+  computeSum();
+}
+
+// dragging mechanics using pointer events
+let currentDrag = null;
+function startDrag(e){
+  e.preventDefault();
+  const coin = e.currentTarget;
+  coin.setPointerCapture(e.pointerId);
+  coin.dataset.dragging = '1';
+  currentDrag = { coin, startX: e.clientX, startY: e.clientY,
+                  origLeft: parseFloat(coin.style.left||0),
+                  origTop: parseFloat(coin.style.top||0),
+                  pointerId: e.pointerId
+                };
+
+  coin.style.transition = 'none';
+  coin.style.zIndex = 9999;
+  // small scale up
+  coin.style.transform = (coin.classList.contains('flipped') ? 'rotateY(180deg) scale(1.06)' : 'scale(1.06)');
+  window.addEventListener('pointermove', doDrag);
+  window.addEventListener('pointerup', endDrag);
+}
+
+function doDrag(e){
+  if(!currentDrag) return;
+  if(e.pointerId !== currentDrag.pointerId) return;
+  const dx = e.clientX - currentDrag.startX;
+  const dy = e.clientY - currentDrag.startY;
+  const nx = currentDrag.origLeft + dx;
+  const ny = currentDrag.origTop + dy;
+  currentDrag.coin.style.left = nx + 'px';
+  currentDrag.coin.style.top = ny + 'px';
+}
+
+function endDrag(e){
+  if(!currentDrag) return;
+  const coin = currentDrag.coin;
+  coin.releasePointerCapture(currentDrag.pointerId);
+  coin.style.transition = '';
+  coin.style.zIndex = '';
+  coin.style.transform = coin.classList.contains('flipped') ? 'rotateY(180deg)' : '';
+  // if dropped over trash, remove
+  const trash = q('#trash').getBoundingClientRect();
+  const cRect = coin.getBoundingClientRect();
+  if(rectOverlap(trash, cRect)){
+    coin.remove();
+    currentDrag = null;
+    computeSum();
+    window.removeEventListener('pointermove', doDrag);
+    window.removeEventListener('pointerup', endDrag);
+    return;
+  }
+  // else ensure coin stays within viewport (optional)
+  // compute sum if coin is inside board bounds
+  currentDrag = null;
+  computeSum();
+  window.removeEventListener('pointermove', doDrag);
+  window.removeEventListener('pointerup', endDrag);
+}
+
+function rectOverlap(a,b){
+  return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+}
+
+// compute sum of coins whose center lies inside board bounds
+function computeSum(){
+  const coins = qa('.coin');
+  const br = board.getBoundingClientRect();
+  let sum = 0;
+  let count = 0;
+  coins.forEach(c => {
+    const r = c.getBoundingClientRect();
+    const cx = r.left + r.width/2;
+    const cy = r.top + r.height/2;
+    if(cx >= br.left && cx <= br.right && cy >= br.top && cy <= br.bottom){
+      sum += Number(c.dataset.value || 0);
+      count++;
+    }
+  });
+  totalDisplay.textContent = 'ผลรวม: ' + sum;
+  sumValue.textContent = sum;
+  boardCount.textContent = 'เหรียญบนกระดาน: ' + count;
+  return {sum, count};
+}
+
+// UI button bindings
+q('#addPlus').addEventListener('click', ()=> makeCoin(1));
+q('#addMinus').addEventListener('click', ()=> makeCoin(-1));
+q('#addRandom').addEventListener('click', ()=>{
+  for(let i=0;i<5;i++){
+    makeCoin(Math.random()>0.5?1:-1);
+  }
+});
+q('#resetBtn').addEventListener('click', ()=>{
+  qa('.coin').forEach(c=>c.remove());
+  computeSum();
+});
+q('#flipAll').addEventListener('click', ()=>{
+  qa('.coin').forEach(c=> toggleFlip(c));
+});
+q('#removeAll').addEventListener('click', ()=>{
+  qa('.coin').forEach(c=>c.remove());
+  computeSum();
+});
+q('#countOnBoard').addEventListener('click', computeSum);
+
+q('#applyProblem').addEventListener('click', ()=>{
+  const txt = problemInput.value.trim();
+  if(!txt){ alert('ใส่โจทย์เช่น: -2 + 5'); return; }
+  problemText.textContent = txt;
+});
+q('#autoSolve').addEventListener('click', ()=>{
+  const txt = (problemInput.value||problemText.textContent).trim();
+  try{
+    // safely evaluate simple arithmetic with only digits, parentheses, + - * / and spaces
+    if(!/^[0-9\s()+\-/*]+$/.test(txt.replace(/−/g,'-'))){ throw 'invalid'; }
+    const expr = txt.replace(/−/g,'-');
+    // eslint-disable-next-line no-eval
+    const ans = eval(expr);
+    alert('เฉลย: ' + ans);
+  }catch(e){
+    alert('ไม่สามารถประเมินนิพจน์ได้ ลองใช้รูปแบบเช่น -2 + 5');
+  }
+});
+
+q('#explain').addEventListener('click', ()=>{
+  alert('ข้อเสนอการสอน:\n\n1) ให้เด็กลากเหรียญ -2 มาวาง แล้วให้เพิ่ม +1 จำนวน 5 ครั้ง แล้วนับผลลัพธ์\n2) ให้เด็กทดลองพลิกเหรียญเพื่อดูว่าเครื่องหมายเปลี่ยนผลรวมอย่างไร\n3) ต่อด้วยโจทย์ที่มีทั้งบวกและลบ (เช่น 3 + (-4)) และให้เด็กอธิบายวิธีคิด\n\n(คลิกขวาที่เหรียญเพื่อลบอย่างรวดเร็ว)');
+});
+
+// download board as PNG (simple)
+q('#downloadBtn').addEventListener('click', ()=>{
+  // use html2canvas if available; fallback to take screenshot of board via browser's Print? We will use toDataURL via SVG serializer for simple capture of board background and coin positions.
+  // For simplicity we create a SVG snapshot of the board and coin circles.
+  const br = board.getBoundingClientRect();
+  const coins = qa('.coin');
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS,'svg');
+  svg.setAttribute('width', br.width);
+  svg.setAttribute('height', br.height);
+  svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  // background
+  const rect = document.createElementNS(svgNS,'rect');
+  rect.setAttribute('width','100%');
+  rect.setAttribute('height','100%');
+  rect.setAttribute('fill','#ffffff');
+  svg.appendChild(rect);
+  coins.forEach(c=>{
+    const r = c.getBoundingClientRect();
+    const cx = r.left - br.left + r.width/2;
+    const cy = r.top - br.top + r.height/2;
+    const val = Number(c.dataset.value);
+    const circle = document.createElementNS(svgNS,'circle');
+    circle.setAttribute('cx', cx);
+    circle.setAttribute('cy', cy);
+    circle.setAttribute('r', Math.min(r.width,r.height)/2 - 4);
+    circle.setAttribute('fill', val>0 ? '#fff6b8' : '#ffe0e5');
+    circle.setAttribute('stroke', val>0 ? '#f7d86b' : '#ffb1b9');
+    svg.appendChild(circle);
+    const txt = document.createElementNS(svgNS,'text');
+    txt.setAttribute('x', cx);
+    txt.setAttribute('y', cy + 6);
+    txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('font-size','20');
+    txt.setAttribute('font-family','Arial');
+    txt.setAttribute('fill','#111');
+    txt.textContent = val>0 ? '' : '-1';
+    svg.appendChild(txt);
+  });
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+  const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(svgBlob);
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width = br.width * 2;
+    canvas.height = br.height * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(2,2);
+    ctx.drawImage(img,0,0);
+    URL.revokeObjectURL(url);
+    const dataURL = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataURL;
+    a.download = 'board.png';
+    a.click();
+  };
+  img.src = url;
+});
+
+// initial seed
+for(let i=0;i<3;i++){ makeCoin(1); makeCoin(-1); }
+computeSum();
+
+// recompute periodically in case coins are moved by other users in shared doc
+setInterval(computeSum, 700);
+
+</script>
+</body>
+</html> 
